@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="hi"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Plan Tracker</title>
+<style>
+:root{--bg:#e9edf2;--card:#fff;--ink:#1c2740;--mut:#667089;--ac:#d9a21b;--line:#d8dee8}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1520;--card:#18202e;--ink:#eef1f6;--mut:#939db3;--ac:#f0bb3a;--line:#27324a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,sans-serif;padding:calc(env(safe-area-inset-top) + 14px) 14px 40px}
+h1{font-size:26px;font-weight:800;letter-spacing:-.5px;margin:0}
+#sub{color:var(--mut);font-size:14px;margin:2px 0 14px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font-size:28px;font-weight:800;line-height:1.1}
+#st{color:var(--ac)}
+.stat span{font-size:13px;color:var(--mut)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:2px 14px;margin-bottom:14px}
+label.it{display:flex;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
+label.it:last-child{border:0}
+input[type=checkbox]{width:26px;height:26px;accent-color:var(--ac);flex:none}
+.t{color:var(--mut);font-size:14px;width:44px;flex:none;font-variant-numeric:tabular-nums}
+.row{display:flex;gap:8px;align-items:center;padding:12px 0}
+input[type=number]{width:96px;padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:16px}
+button{padding:10px 16px;border:0;border-radius:8px;background:var(--ink);color:var(--bg);font-size:15px;font-weight:600}
+#wl{color:var(--mut);font-size:14px;padding-bottom:12px}
+</style></head><body>
+<h1>Mera Plan</h1><div id="sub"></div>
+<div class="stats">
+<div class="stat"><b id="st">0</b><span>din streak</span></div>
+<div class="stat"><b id="pc">0%</b><span>aaj poora</span></div>
+<div class="stat"><b id="wk">1</b><span>hafta</span></div></div>
+<div class="card" id="list"></div>
+<div class="card"><div class="row">Weight (kg) <input id="wt" type="number" step="0.1" inputmode="decimal"><button onclick="saveW()">Save weight</button></div><div id="wl"></div></div>
+<script>
+// ponytail: no bundler, plain JS + localStorage. Ceiling: clearing app data wipes records; upgrade: Capacitor Preferences + export.
+const $=id=>document.getElementById(id);
+const pad=n=>String(n).padStart(2,'0');
+const day=(t=new Date())=>t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate());
+const K='plan1',S=JSON.parse(localStorage.getItem(K)||'{}');
+S.d=S.d||{};S.w=S.w||{};S.start=S.start||day();
+const save=()=>localStorage.setItem(K,JSON.stringify(S));
+//LOGIC
+// [id, hour, minute, label, first week it appears]
+const ITEMS=[
+['chia',6,45,'Chia/sabja paani (bhigoya hua)',1],
+['bf',7,15,'4 anda + 2 roti + kela',1],
+['lunch',13,0,'3 roti, rice, dal, sabzi, 200g dahi',1],
+['snack',17,0,'Kela + 30g peanuts',3],
+['gym',19,0,'Gym (Mon/Wed/Fri)',4],
+['dinner',21,0,'150g chicken sabji + 300g rice + salad',1],
+['night',22,45,'Kela + 20g peanuts',2],
+['sleep',23,0,'Sone ka time',1],
+['water',null,0,'Paani 3 litre',1]];
+const dt=d=>new Date(d+'T00:00');
+const weekOf=(d,s)=>Math.floor(Math.round((dt(d)-dt(s))/864e5)/7)+1;
+const itemsFor=(w,d)=>ITEMS.filter(i=>i[4]<=w&&(i[0]!='gym'||[1,3,5].includes(dt(d).getDay())));
+// a day counts for the streak when >=80% of its items are done; unfinished today does not break it
+function streak(S,today){let n=0,t=dt(today);
+for(let k=0;k<400;k++,t.setDate(t.getDate()-1)){const d=day(t);if(d<S.start)break;
+const need=itemsFor(weekOf(d,S.start),d).length;
+if((S.d[d]||[]).length>=Math.ceil(need*.8))n++;else if(k>0)break;}return n}
+//LOGIC
+function render(){const t=day(),w=weekOf(t,S.start),its=itemsFor(w,t),dn=S.d[t]||[];
+$('sub').textContent=t+' | Aaj ghee: '+(w<2?3:w<3?5:6)+' tsp';
+$('list').innerHTML=its.map(i=>`<label class="it"><span class="t">${i[1]==null?'':i[1]+':'+pad(i[2])}</span><input type="checkbox" ${dn.includes(i[0])?'checked':''} onchange="tog('${i[0]}')"><span>${i[3]}</span></label>`).join('');
+$('pc').textContent=Math.round(dn.length/its.length*100)+'%';$('wk').textContent=w;$('st').textContent=streak(S,t);
+$('wl').innerHTML=Object.keys(S.w).sort().slice(-6).reverse().map(d=>d+': '+S.w[d]+' kg').join('<br>')}
+function tog(id){const t=day(),a=S.d[t]=S.d[t]||[],i=a.indexOf(id);i<0?a.push(id):a.splice(i,1);save();render()}
+function saveW(){const v=parseFloat($('wt').value);if(!(v>20&&v<200))return alert('Sahi weight daalo (kg)');S.w[day()]=v;save();render()}
+// ponytail: reminders are re-scheduled each time the app opens (open it once a week so new-week items get reminders).
+async function remind(){const LN=window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins.LocalNotifications;if(!LN)return;
+try{if((await LN.requestPermissions()).display!=='granted')return;
+const p=await LN.getPending();if(p.notifications.length)await LN.cancel(p);
+const w=weekOf(day(),S.start),n=[];let id=1;
+const sc=o=>({on:o,allowWhileIdle:true});
+for(const i of ITEMS){if(i[1]==null||i[4]>w)continue;const body='Time ho gaya: '+i[3];
+if(i[0]=='gym')[2,4,6].forEach(wd=>n.push({id:id++,title:'Plan Tracker',body,schedule:sc({weekday:wd,hour:18,minute:45})}));
+else n.push({id:id++,title:'Plan Tracker',body,schedule:sc({hour:i[1],minute:i[2]})})}
+await LN.schedule({notifications:n})}catch(e){console.error(e)}}
+render();remind();
+</script></body></html>
